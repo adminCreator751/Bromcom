@@ -664,9 +664,7 @@
     }
 
     function scrollToLatest(box) {
-      requestAnimationFrame(()=>{
-        box.scrollTop=box.scrollHeight;
-      });
+      requestAnimationFrame(()=>{ box.scrollTop=box.scrollHeight; });
     }
 
     function drawMessages(box,items,{moderate=false,roomId=null}={}) {
@@ -767,7 +765,6 @@
         box.append(article);
       }
 
-      // Scroll after the DOM is updated so Global chat opens on the newest post.
       scrollToLatest(box);
     }
 
@@ -972,12 +969,42 @@
       drawSupportMessages($("supportAdminMessages"),conversation.messages);
     }
 
+    function getLastSeenValue(value) {
+      if (typeof value==="number") return value;
+      if (value&&typeof value==="object") {
+        return Number(value.lastSeen||value.lastSeenAt||value.connectedAt||0);
+      }
+      return 0;
+    }
+
     function drawOnline() {
       const list=$("onlineList");
       list.replaceChildren();
-      const tags=new Set([...Object.keys(seenTags||{}),...Object.keys(presence||{})]);
 
-      if (!tags.size) {
+      const tags=new Set([
+        ...Object.keys(seenTags||{}),
+        ...Object.keys(presence||{})
+      ]);
+
+      const visitors=[...tags].map(userTag=>{
+        const connections=presence?.[userTag]||{};
+        const online=Object.keys(connections).length>0;
+        const storedLastSeen=getLastSeenValue(seenTags?.[userTag]);
+        const connectionTimes=Object.values(connections)
+          .map(connection=>Number(connection?.connectedAt||0))
+          .filter(Number.isFinite);
+        const lastSeen=online
+          ?Math.max(0,...connectionTimes)
+          :storedLastSeen;
+
+        return {userTag,connections,online,lastSeen};
+      }).sort((a,b)=>
+        Number(b.online)-Number(a.online) ||
+        b.lastSeen-a.lastSeen ||
+        a.userTag.localeCompare(b.userTag)
+      );
+
+      if (!visitors.length) {
         const empty=document.createElement("p");
         empty.className="muted";
         empty.textContent="No tags have been seen yet.";
@@ -985,12 +1012,19 @@
         return;
       }
 
-      for (const userTag of [...tags].sort()) {
-        const connections=presence?.[userTag]||{};
-        const online=Object.keys(connections).length>0;
+      for (const visitor of visitors) {
         const row=document.createElement("div");
         row.className="item";
-        row.textContent=`${displayName(userTag)} · ${online?`Online (${Object.keys(connections).length} connection(s))`:"Offline"}`;
+
+        const status=visitor.online
+          ?`Online (${Object.keys(visitor.connections).length} connection(s))`
+          :"Offline";
+
+        const seenText=visitor.lastSeen
+          ?`Last seen ${new Date(visitor.lastSeen).toLocaleString()}`
+          :"Last seen time unavailable";
+
+        row.textContent=`${displayName(visitor.userTag)} · ${status} · ${visitor.online?"Online now":seenText}`;
         list.append(row);
       }
     }
@@ -1454,7 +1488,9 @@
         try {
           await onDisconnect(presenceRef).remove();
           await set(presenceRef,{connectedAt:serverTimestamp()});
-          await set(ref(db,`seenTags/${tag}`),true);
+          await update(ref(db,`seenTags/${tag}`),{
+            lastSeen:Date.now()
+          });
         } catch(error) {
           console.warn("Presence setup failed:",error);
         }
@@ -2187,6 +2223,7 @@
         document.querySelectorAll(".adminSection").forEach(section=>section.classList.add("hidden"));
         $(button.dataset.tab).classList.remove("hidden");
         if (button.dataset.tab==="pollsTab") drawAdminPolls();
+        if (button.dataset.tab==="onlineTab") drawOnline();
       };
     });
 
@@ -2194,4 +2231,3 @@
   </script>
 </body>
 </html>
-``
