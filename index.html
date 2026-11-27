@@ -87,6 +87,7 @@
     #messages,#adminThreadMessages,#userThreadMessages,#supportMessages,#supportAdminMessages {
       height:min(38vh,420px); overflow:auto; padding:10px;
       background:#0d1119dd; border:1px solid #ffffff20; border-radius:12px;
+      scroll-behavior:smooth;
     }
     .message {
       margin:0 0 10px; padding:11px; background:#283143e8;
@@ -274,7 +275,7 @@
     <p id="supportNotice" class="muted" role="status"></p>
   </section>
 
-  <section id="nicknamePage" class="panel hidden stack">
+  <section id="nicknamePage" class="panel stack hidden">
     <h1>Choose a nickname</h1>
     <p class="muted">Up to 10 characters. You can change it whenever you like.</p>
     <label>Nickname<input id="nicknameInput" maxlength="10" autocomplete="off"></label>
@@ -456,7 +457,7 @@
     <form id="adminLoginForm" class="stack">
       <h2>Admin login</h2>
       <label>Email<input id="adminEmail" type="email" autocomplete="username" required></label>
-      <label>Password><input id="adminPassword" type="password" autocomplete="current-password" required></label>
+      <label>Password<input id="adminPassword" type="password" autocomplete="current-password" required></label>
       <div class="row">
         <button id="cancelAdminLogin" class="secondary" type="button">Cancel</button>
         <button type="submit">Login</button>
@@ -496,7 +497,7 @@
       appId:"1:693675816128:web:bf6f87a36832ce506a6925"
     };
 
-const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
+    const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
     const DEFAULT_URL="https://bromcom321.netlify.app";
     const ESCAPE_URL="https://www.bromcomvle.com/";
     const MAX_IMAGE_BYTES=300*1024;
@@ -662,6 +663,12 @@ const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
       $("moderationDialog").showModal();
     }
 
+    function scrollToLatest(box) {
+      requestAnimationFrame(()=>{
+        box.scrollTop=box.scrollHeight;
+      });
+    }
+
     function drawMessages(box,items,{moderate=false,roomId=null}={}) {
       box.replaceChildren();
       const rows=Object.entries(items||{}).sort(
@@ -694,7 +701,7 @@ const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
         }
         box.append(article);
       }
-      box.scrollTop=box.scrollHeight;
+      scrollToLatest(box);
     }
 
     function drawSupportMessages(box,items) {
@@ -722,14 +729,15 @@ const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
         article.append(header,body);
         box.append(article);
       }
-      box.scrollTop=box.scrollHeight;
+      scrollToLatest(box);
     }
 
     function drawGlobalMessages() {
       const box=$("messages");
       box.replaceChildren();
+
       const rows=Object.entries(globalMessages||{})
-        .filter(([,m])=>m&&Number(m.createdAt)>=Date.now()-86400000)
+        .filter(([,message])=>message&&Number(message.createdAt)>=Date.now()-86400000)
         .sort((a,b)=>Number(a[1].createdAt)-Number(b[1].createdAt));
 
       for (const [id,message] of rows) {
@@ -750,6 +758,7 @@ const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
         body.textContent=message.text||"";
         article.append(header,body);
         appendImage(article,message);
+
         if (isAdmin) {
           article.ondblclick=()=>moderateMessage({
             kind:"global",messageId:id,message,label:"Global chat message"
@@ -757,7 +766,9 @@ const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
         }
         box.append(article);
       }
-      box.scrollTop=box.scrollHeight;
+
+      // Scroll after the DOM is updated so Global chat opens on the newest post.
+      scrollToLatest(box);
     }
 
     function typingText(room,exclude="") {
@@ -2129,10 +2140,27 @@ const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
       }
     };
 
-    $("homeButton").onclick=()=>{currentPage="home";render();};
-    $("chatButton").onclick=()=>{currentPage="oneToOne";render();};
-    $("globalChatButton").onclick=()=>{currentPage="chat";render();};
-    $("pollsButton").onclick=()=>{currentPage="polls";render();};
+    $("homeButton").onclick=()=>{
+      currentPage="home";
+      render();
+    };
+
+    $("chatButton").onclick=()=>{
+      currentPage="oneToOne";
+      render();
+    };
+
+    $("globalChatButton").onclick=()=>{
+      currentPage="chat";
+      render();
+      drawGlobalMessages();
+    };
+
+    $("pollsButton").onclick=()=>{
+      currentPage="polls";
+      render();
+    };
+
     $("inboxButton").onclick=()=>{
       currentPage="inbox";
       if (!selectedUserRoom&&supportChats?.[tag]?.messages) selectedUserRoom="support";
@@ -2140,7 +2168,12 @@ const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
       drawUserRooms();
       if (selectedUserRoom) drawSelectedUserRoom();
     };
-    $("contactAdminButton").onclick=()=>{currentPage="contactAdmin";render();};
+
+    $("contactAdminButton").onclick=()=>{
+      currentPage="contactAdmin";
+      render();
+    };
+
     $("nicknameButton").onclick=()=>{
       currentPage="nickname";
       $("nicknameInput").value=nicknames?.[tag]||"";
@@ -2161,3 +2194,4 @@ const ADMIN_UIDS = ["qkMjASNbFnfgLcko3YPmq8mp4Zv1"];
   </script>
 </body>
 </html>
+``
